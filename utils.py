@@ -1,7 +1,7 @@
 import os.path
 import sys
 
-
+ 
 # Чтение файла
 def read_file(filename):
     # Открытие файла
