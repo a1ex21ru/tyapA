@@ -24,7 +24,7 @@ LAYOUT = [
     ],
 ]
 
-DEBUG = True
+DEBUG = False
 
 
 def main():
