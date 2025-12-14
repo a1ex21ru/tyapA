@@ -1,9 +1,9 @@
 from symantic import *
 
 SIZES = {
-    'int': 8,
-    'float32': 8,
-    'bool': 4,
+    'int': 4,
+    'float': 8,
+    'bool': 1,
 }
 
 def stack_calls(operations: Operations[SimpleVar | ArrayVar]) -> str:
