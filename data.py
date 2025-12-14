@@ -35,15 +35,27 @@ class Type:
 def parse_value(var_type, value):
     """
     Парсинг значения в соответствии с типом
+    ИСПРАВЛЕНО: корректная обработка как строк, так и чисел
     """
     match var_type:
         case 'int':
-            return int(value), 'int'
+            # Может быть строка или уже int
+            if isinstance(value, str):
+                return int(float(value)), 'int'  # Через float для "5.0" -> 5
+            else:
+                return int(value), 'int'
         case 'float':  # Изменено с float32
-            return float(value), 'float'
+            # Может быть строка или уже float/int
+            if isinstance(value, str):
+                return float(value), 'float'
+            else:
+                return float(value), 'float'
         case 'bool':
-            return True if (isinstance(value, str) and value == 'true') or \
-                          (isinstance(value, bool) and value) else False, 'bool'
+            # Может быть строка "true"/"false" или bool
+            if isinstance(value, str):
+                return value.lower() == 'true', 'bool'
+            else:
+                return bool(value), 'bool'
         case _:
             raise Exception(f'Cannot parse value \'{value}\' in type \'{var_type}\'')
 
@@ -146,7 +158,7 @@ class Token:
 # Константы размеров типов в байтах
 SIZES = {
     'int': 8,
-    'float': 8,
+    'float': 8,    # Изменено с float32
     'bool': 4,
 }
 

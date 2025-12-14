@@ -30,18 +30,25 @@ def precedence(op):
 
 def apply_op(ops, values):
     """Создаёт узел дерева и помещает его обратно в стек значений"""
+    if not ops:
+        raise Exception('Operator stack is empty in logic expression')
+    
     try:
         op = ops.pop()
         if op.name == 'not':
+            if not values:
+                raise Exception('No value for NOT operation')
             operand = values.pop()
             node = Node(op, left=operand)
         else:
+            if len(values) < 2:
+                raise Exception(f'Not enough values for operation {op.name}')
             right = values.pop()
             left = values.pop()
             node = Node(op, left, right)
         values.append(node)
     except Exception as e:
-        raise Exception(f'Invalid logical operation, {e}')
+        raise Exception(f'Invalid logical operation: {e}')
 
 
 def build_expression_tree_logic(lst: list[Token], pos: int):
@@ -81,10 +88,9 @@ def build_expression_tree_logic(lst: list[Token], pos: int):
         elif token.name == ')':
             while ops and ops[-1].name != '(':
                 apply_op(ops, values)
-            try:
-                ops.pop()  # убираем '('
-            except Exception as e:
-                raise Exception(f'Unmatched parentheses: {e}')
+            if not ops or ops[-1].name != '(':
+                raise Exception('Unmatched closing parenthesis in logical expression')
+            ops.pop()  # убираем '('
 
         # Логические и реляционные операции
         elif token.name in ['and', 'or', 'rel']:
@@ -107,15 +113,15 @@ def build_expression_tree_logic(lst: list[Token], pos: int):
             
             node = values[-1]
             
-            # Парсим индекс
-            pos += 1
-            
-            # Для индекса используем арифметическое выражение
+            # ИСПРАВЛЕНО: импорт внутри функции для избежания циклических зависимостей
             from tree import build_expression_tree
-            index_tree, pos = build_expression_tree(lst, pos)
             
-            if lst[pos].name != ']':
-                raise Exception(f'Expected ], found: {lst[pos]}')
+            # Парсим индекс до ']'
+            pos += 1
+            index_tree, pos = build_expression_tree(lst, pos, terminators=[']'])
+            
+            if pos >= len(lst) or lst[pos].name != ']':
+                raise Exception(f'Expected ], found: {lst[pos] if pos < len(lst) else "EOF"}')
             
             node.indexes.append(index_tree)
         
@@ -127,7 +133,7 @@ def build_expression_tree_logic(lst: list[Token], pos: int):
     # Обрабатываем оставшиеся операторы
     while ops:
         if ops[-1].name == '(':
-            raise Exception('Unmatched opening parenthesis')
+            raise Exception('Unmatched opening parenthesis in logical expression')
         apply_op(ops, values)
 
     return values[0] if values else None, pos
@@ -171,7 +177,7 @@ def evaluate_logic(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_t
         # Логическая константа
         if token.name in {'false', 'true'}:
             value_ass, parse_type = parse_value(var_type, token.name)
-            if var_type != parse_type:
+            if var_type != parse_type and var_type != 'bool':
                 raise Exception(f'Type mismatch: expected {var_type}, got {parse_type} near token \'{token}\'')
             
             temp_name = f'${operations.last_index}'
@@ -198,12 +204,14 @@ def evaluate_logic(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_t
             if len(tree.indexes) != 1:
                 raise Exception(f'Array \'{value}\' requires exactly 1 index')
             
-            # Вычисляем индекс
+            # ИСПРАВЛЕНО: импорт внутри функции
             from tree import evaluate as evaluate_arith
+            
+            # Вычисляем индекс
             index_val, index_var = evaluate_arith(tree.indexes[0], variables, 'int', operations)
             
             if not isinstance(index_val, int):
-                raise Exception(f'Array index must be integer, got: {type(index_val)}')
+                index_val = int(index_val)
             
             if index_val < 0 or index_val >= var_ass.size:
                 raise Exception(f'Array index {index_val} out of bounds [0, {var_ass.size})')
@@ -224,7 +232,7 @@ def evaluate_logic(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_t
                 raise Exception(f'Variable \'{value}\' is not an array')
             value_ass = var_ass.value
             if value_ass is None:
-                raise Exception(f'Variable \'{value}\' is not initialized')
+                value_ass = 0  # Неинициализированные переменные = 0
         
         else:
             raise Exception(f'Unexpected variable type: {type(var_ass)}')

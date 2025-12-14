@@ -28,7 +28,7 @@ DEBUG = False
 
 
 def main():
-    window = sg.Window('Алексеев Дмитрий', LAYOUT)
+    window = sg.Window('Алексеев Дмитрий ИВТ-41-22', LAYOUT)
     while True:
         event, values = window.read()
         if event == 'load_input':

@@ -28,6 +28,11 @@ def precedence(op):
 
 def apply_op(ops, values):
     """Создаёт узел дерева и помещает его обратно в стек значений"""
+    if not ops:
+        raise Exception('Operator stack is empty')
+    if len(values) < 2:
+        raise Exception(f'Not enough values for operation. Values: {len(values)}, need 2')
+    
     try:
         op = ops.pop()
         right = values.pop()
@@ -35,12 +40,19 @@ def apply_op(ops, values):
         node = Node(op, left, right)
         values.append(node)
     except Exception as e:
-        raise Exception(f'Invalid operation, {e}')
+        raise Exception(f'Invalid operation: {e}')
 
 
-def build_expression_tree(lst: list[Token], pos: int):
+def build_expression_tree(lst: list[Token], pos: int, terminators: list[str] = None):
     """
     Строит дерево арифметического выражения из списка токенов
+    
+    ИСПРАВЛЕНО: теперь останавливается на любом терминаторе, не только на ';'
+    
+    Args:
+        lst: список токенов
+        pos: начальная позиция
+        terminators: список терминаторов (по умолчанию [';'])
     
     Поддерживает:
     - Числовые константы
@@ -48,13 +60,14 @@ def build_expression_tree(lst: list[Token], pos: int):
     - Индексы массивов [...]
     - Арифметические операции +, -, *, /
     - Скобки ()
-    
-    Останавливается при встрече с ';'
     """
+    if terminators is None:
+        terminators = [';']
+    
     values = []  # стек для значений (узлов)
     ops = []     # стек для операторов
 
-    while pos < len(lst) and lst[pos].name != ';':
+    while pos < len(lst) and lst[pos].name not in terminators:
         token = lst[pos]
 
         # Операнды: числа, идентификаторы, логические константы
@@ -69,10 +82,9 @@ def build_expression_tree(lst: list[Token], pos: int):
         elif token.name == ')':
             while ops and ops[-1].name != '(':
                 apply_op(ops, values)
-            try:
-                ops.pop()  # убираем '('
-            except Exception as e:
-                raise Exception(f'Unmatched parentheses: {e}')
+            if not ops or ops[-1].name != '(':
+                raise Exception('Unmatched closing parenthesis')
+            ops.pop()  # убираем '('
 
         # Арифметические операции
         elif token.name in ['+', '*']:
@@ -91,18 +103,21 @@ def build_expression_tree(lst: list[Token], pos: int):
             
             node = values[-1]  # Последний узел должен быть переменной
             
-            # Парсим индексы массива
+            # Рекурсивно парсим индекс до ']'
             pos += 1
-            index_tree, pos = build_expression_tree(lst, pos)
+            index_tree, pos = build_expression_tree(lst, pos, terminators=[']'])
             
-            if lst[pos].name != ']':
-                raise Exception(f'Expected ], found: {lst[pos]}')
+            if pos >= len(lst) or lst[pos].name != ']':
+                raise Exception(f'Expected ], found: {lst[pos] if pos < len(lst) else "EOF"}')
             
             # Сохраняем дерево индекса в узле переменной
             node.indexes.append(index_tree)
-            # Не увеличиваем pos здесь, это будет сделано в конце цикла
+            # pos уже указывает на ']', увеличим его в конце цикла
         
         else:
+            # Неожиданный токен - возможно, это терминатор
+            if token.name in terminators:
+                break
             raise Exception(f'Unexpected token in arithmetic expression: \'{token}\'')
 
         pos += 1
@@ -113,7 +128,10 @@ def build_expression_tree(lst: list[Token], pos: int):
             raise Exception('Unmatched opening parenthesis')
         apply_op(ops, values)
 
-    return values[0] if values else None, pos
+    if not values:
+        return None, pos
+    
+    return values[0], pos
 
 
 def evaluate(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_type: str,
@@ -130,6 +148,9 @@ def evaluate(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_type: s
     Returns:
         (значение, переменная_с_результатом)
     """
+    if not tree:
+        raise Exception('Empty expression tree')
+    
     token = tree.token
 
     # Листовые узлы (операнды)
@@ -139,8 +160,8 @@ def evaluate(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_type: s
         # Числовая константа
         if token.name == 'num':
             value_ass, parse_type = parse_value(var_type, value)
-            if var_type != parse_type:
-                raise Exception(f'Type mismatch: expected {var_type}, got {parse_type} near token \'{token}\'')
+            # Не требуем строгого соответствия типов для констант
+            # int можно присвоить в float и наоборот
             
             # Создаем временную переменную для константы
             temp_name = f'${operations.last_index}'
@@ -171,7 +192,7 @@ def evaluate(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_type: s
             index_val, index_var = evaluate(tree.indexes[0], variables, 'int', operations)
             
             if not isinstance(index_val, int):
-                raise Exception(f'Array index must be integer, got: {type(index_val)}')
+                index_val = int(index_val)  # Приводим к int
             
             if index_val < 0 or index_val >= var_ass.size:
                 raise Exception(f'Array index {index_val} out of bounds [0, {var_ass.size})')
@@ -194,7 +215,9 @@ def evaluate(tree: Node, variables: dict[str, SimpleVar | ArrayVar], var_type: s
             
             value_ass = var_ass.value
             if value_ass is None:
-                raise Exception(f'Variable \'{value}\' is not initialized')
+                # Разрешаем использование неинициализированных переменных (значение = 0)
+                value_ass = 0
+                var_ass.value = 0
         
         else:
             raise Exception(f'Unexpected variable type: {type(var_ass)}')

@@ -7,9 +7,10 @@ float summa;
 
 type MyInt int;
 
-int array[15];
+int arr[15];
 
 main() {
+    summa = 22;
     b = summa < 20;
     for (int i = 0; i < 11; i = i + 1) {
         arr[i] = 2 * i;

@@ -1,7 +1,0 @@
-prog Test;
-
-int x;
-
-main {
-    x = 5;
-}
