@@ -5,23 +5,25 @@ from collections import defaultdict
 
 nested_dict = lambda: defaultdict(nested_dict)
 
+# Базовые типы данных (изменено: float вместо float32)
 TYPES = [
     'int',
-    'float32',
+    'float',    # Изменено с float32 на float
     'bool',
 ]
 
+# Ключевые слова языка
 key_words = [
-    'program',
+    'prog',     # Изменено с 'program' на 'prog'
     'main',
+    'type',
+    'for',      # Добавлен для цикла for
+    'while',    # Оставлен для совместимости
+    'true',
+    'false',
     '&&',
     '||',
     '!',
-    'type',
-    'var',
-    'True',
-    'False',
-    'while',
     *TYPES,
 ]
 
@@ -31,34 +33,59 @@ class Type:
 
 
 def parse_value(var_type, value):
+    """
+    Парсинг значения в соответствии с типом
+    """
     match var_type:
         case 'int':
             return int(value), 'int'
-        case 'float32':
-            return float(value), 'float32'
+        case 'float':  # Изменено с float32
+            return float(value), 'float'
         case 'bool':
-            return True if (isinstance(value, str) and value == 'True') or isinstance(value,
-                                                                                      bool) and value else False, 'bool'
+            return True if (isinstance(value, str) and value == 'true') or \
+                          (isinstance(value, bool) and value) else False, 'bool'
         case _:
             raise Exception(f'Cannot parse value \'{value}\' in type \'{var_type}\'')
 
 
 @dataclasses.dataclass
 class SimpleVar:
+    """
+    Простая переменная (скаляр)
+    
+    Attributes:
+        name: имя переменной
+        type: тип данных (int, float, bool)
+        value: текущее значение
+        addr: адрес в памяти (для визуализации)
+    """
     name: str
     type: str
     value: any
+    addr: int = 0
 
     def set_value(self, value):
+        """Установка значения с приведением типа"""
         self.value, _ = parse_value(self.type, value)
 
 
 @dataclasses.dataclass
 class ArrayVar:
+    """
+    Массив (одномерный)
+    
+    Attributes:
+        name: имя массива
+        type: тип элементов (int, float, bool)
+        size: размер массива
+        values: словарь значений с индексами
+        addr: адрес в памяти
+    """
     name: str
     type: str
-    sizes: list[int]
+    size: int  # Изменено: теперь только одно значение для одномерных массивов
     values: defaultdict = dataclasses.field(default_factory=nested_dict)
+    addr: int = 0
 
     def __getitem__(self, key):
         return self.values[key]
@@ -66,21 +93,46 @@ class ArrayVar:
     def __setitem__(self, key, value):
         self.values[key] = value
 
-    def set_value(self, indexes, value):
-        values = self.values
-        for index in indexes[:-1]:
-            values = values[index]
-        values[indexes[-1]], _ = parse_value(self.type, value)
+    def set_value(self, index, value):
+        """
+        Установка значения элемента массива
+        
+        Args:
+            index: индекс элемента (целое число)
+            value: значение для установки
+        """
+        if not isinstance(index, int):
+            raise TypeError(f"Array index must be int, not {type(index)}")
+        if index < 0 or index >= self.size:
+            raise IndexError(f"Array index {index} out of range [0, {self.size})")
+        self.values[index], _ = parse_value(self.type, value)
 
-    def get_value(self, indexes):
-        values = self.values
-        for index in indexes[:-1]:
-            values = values[index]
-        return values[indexes[-1]]
+    def get_value(self, index):
+        """
+        Получение значения элемента массива
+        
+        Args:
+            index: индекс элемента
+            
+        Returns:
+            Значение элемента или None если не инициализирован
+        """
+        if not isinstance(index, int):
+            raise TypeError(f"Array index must be int, not {type(index)}")
+        if index < 0 or index >= self.size:
+            raise IndexError(f"Array index {index} out of range [0, {self.size})")
+        return self.values.get(index)
 
 
 @dataclasses.dataclass
 class Token:
+    """
+    Токен (лексема)
+    
+    Attributes:
+        name: тип токена (id, num, prog, main, и т.д.)
+        value: значение токена
+    """
     name: str
     value: any
 
@@ -89,3 +141,57 @@ class Token:
 
     def __repr__(self):
         return f'("{self.name}": {self.value})'
+
+
+# Константы размеров типов в байтах
+SIZES = {
+    'int': 8,
+    'float': 8,
+    'bool': 4,
+}
+
+
+# Коды операций
+class OpCode:
+    """Коды операций для промежуточного кода"""
+    ADD = 'add'
+    SUB = 'sub'
+    MULT = 'mult'
+    DIV = 'div'
+    ASS = 'ass'
+    AND = 'and'
+    OR = 'or'
+    NOT = 'not'
+    LT = 'lt'      # <
+    LE = 'le'      # <=
+    GT = 'gt'      # >
+    GE = 'ge'      # >=
+    EQ = 'eq'      # ==
+    NE = 'ne'      # !=
+    GOTO = 'goto'
+    IF_GOTO = 'if_goto'
+    LABEL = 'label'
+
+
+# Категории идентификаторов
+class Category:
+    """Категории идентификаторов в таблице символов"""
+    VAR = 'var'           # Переменная
+    CONST = 'const'       # Константа
+    TYPE = 'type'         # Определение типа
+    TEMP = 'temp'         # Временная переменная
+
+
+@dataclasses.dataclass
+class ForLoopContext:
+    """
+    Контекст цикла for для отслеживания переменных
+    
+    Attributes:
+        loop_var: переменная-счетчик цикла
+        start_label: метка начала цикла
+        end_label: метка конца цикла
+    """
+    loop_var: SimpleVar
+    start_label: str
+    end_label: str

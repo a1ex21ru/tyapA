@@ -1,4 +1,4 @@
-program Test1;
+prog Test1;
 var i int;
 var j int;
 var k int;
@@ -7,9 +7,9 @@ var m int;
 var n int;
 var whilevar int;
 var innervar int;
-var x float32;
-var y float32;
-var z float32;
+var x float;
+var y float;
+var z float;
 var cc bool;
 var yyy [5][2]int;
 var zzz [2][3]float32;

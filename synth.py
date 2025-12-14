@@ -3,22 +3,30 @@ from data import *
 
 
 def synth(program_text):
+    """
+    Лексический анализатор для языка с синтаксисом:
+    - prog (вместо program)
+    - int x; (вместо var x int;)
+    - Поддержка // и /* */ комментариев
+    - for (init; cond; incr) { }
+    """
     key_words.sort()
-    sost = 0
+    state = 0
     pos = 0
     identifier = ''
     digit = ''
     out_buffer = list()
+    
     while pos < len(program_text):
-        if sost == 0:
+        if state == 0:
             if program_text[pos] == '<':
-                sost = 1
+                state = 1
             elif program_text[pos] == '>':
-                sost = 2
+                state = 2
             elif program_text[pos] == '=':
-                sost = 11
+                state = 11
             elif program_text[pos] == '!':
-                sost = 12
+                state = 12
             elif program_text[pos] == ';':
                 out_buffer.append({';': 0})
             elif program_text[pos] == ',':
@@ -40,51 +48,60 @@ def synth(program_text):
             elif program_text[pos] == '*':
                 out_buffer.append({'*': 1})
             elif program_text[pos] == '/':
-                sost = 3
+                state = 3
             elif program_text[pos] == '&':
-                sost = 7
+                state = 7
             elif program_text[pos] == '|':
-                sost = 8
+                state = 8
             elif program_text[pos] == '+':
                 out_buffer.append({'+': 1})
             elif program_text[pos] == '-':
                 out_buffer.append({'+': 2})
             elif program_text[pos].isalpha():
                 identifier += program_text[pos]
-                sost = 6
+                state = 6
             elif program_text[pos].isdigit():
                 digit += program_text[pos]
-                sost = 10
-        elif sost == 1:
+                state = 10
+                
+        elif state == 1:  # Состояние после '<'
             if program_text[pos] == '=':
-                out_buffer.append({'rel': 2})
+                out_buffer.append({'rel': 2})  # <=
             else:
-                out_buffer.append({'rel': 1})
+                out_buffer.append({'rel': 1})  # <
                 pos -= 1
-            sost = 0
-        elif sost == 2:
+            state = 0
+            
+        elif state == 2:  # Состояние после '>'
             if program_text[pos] == '=':
-                out_buffer.append({'rel': 4})
+                out_buffer.append({'rel': 4})  # >=
             else:
-                out_buffer.append({'rel': 3})
+                out_buffer.append({'rel': 3})  # >
                 pos -= 1
-            sost = 0
-        elif sost == 3:
+            state = 0
+            
+        elif state == 3:  # Состояние после '/'
             if program_text[pos] == '*':
-                sost = 4
+                state = 4  # Начало многострочного комментария /* */
+            elif program_text[pos] == '/':
+                state = 18  # Начало однострочного комментария //
             else:
-                out_buffer.append({'*': 2})
-                sost = 0
-        elif sost == 4:
+                out_buffer.append({'*': 2})  # Деление
+                pos -= 1
+                state = 0
+                
+        elif state == 4:  # Внутри многострочного комментария
             if program_text[pos] == '*':
-                sost = 5
-        elif sost == 5:
+                state = 5
+                
+        elif state == 5:  # После '*' внутри комментария
             if program_text[pos] == '/':
                 out_buffer.append({'com': 0})
-                sost = 0
+                state = 0
             else:
-                sost = 4
-        elif sost == 6:
+                state = 4
+                
+        elif state == 6:  # Идентификаторы и ключевые слова
             if program_text[pos].isalpha() or program_text[pos].isdigit():
                 identifier += program_text[pos]
             else:
@@ -94,95 +111,110 @@ def synth(program_text):
                     out_buffer.append({'id': identifier})
                 pos -= 1
                 identifier = ''
-                sost = 0
-        elif sost == 7:
+                state = 0
+                
+        elif state == 7:  # Состояние после '&'
             if program_text[pos] == '&':
                 out_buffer.append({'and': 0})
-                sost = 0
+                state = 0
             else:
                 print('Ошибка в автомате &&!')
                 exit(-1)
-        elif sost == 8:
+                
+        elif state == 8:  # Состояние после '|'
             if program_text[pos] == '|':
                 out_buffer.append({'or': 0})
-                sost = 0
+                state = 0
             else:
                 print('Ошибка в автомате ||!')
                 exit(-1)
-        elif sost == 10:
+                
+        elif state == 10:  # Целая часть числа
             if program_text[pos].isdigit():
                 digit += program_text[pos]
             elif program_text[pos] == '.':
                 digit += program_text[pos]
-                sost = 13
+                state = 13
             elif program_text[pos] == 'e':
                 digit += program_text[pos]
-                sost = 15
+                state = 15
             else:
                 out_buffer.append({'num': digit})
                 pos -= 1
                 digit = ''
-                sost = 0
-        elif sost == 11:
+                state = 0
+                
+        elif state == 11:  # Состояние после '='
             if program_text[pos] == '=':
-                out_buffer.append({'rel': 5})
+                out_buffer.append({'rel': 5})  # ==
             else:
-                out_buffer.append({'ass': 0})
+                out_buffer.append({'ass': 0})  # =
                 pos -= 1
-            sost = 0
-        elif sost == 12:
+            state = 0
+            
+        elif state == 12:  # Состояние после '!'
             if program_text[pos] == '=':
-                out_buffer.append({'rel': 6})
-                sost = 0
+                out_buffer.append({'rel': 6})  # !=
+                state = 0
             else:
                 pos -= 1
-                sost = 0
-                out_buffer.append({'not': 0})
-        elif sost == 13:
+                state = 0
+                out_buffer.append({'not': 0})  # !
+                
+        elif state == 13:  # После точки в числе
             if program_text[pos].isdigit():
                 digit += program_text[pos]
-                sost = 14
+                state = 14
             else:
                 print('Ошибка в автомате чисел! (Состояние 13)')
                 exit(-1)
-        elif sost == 14:
+                
+        elif state == 14:  # Дробная часть числа
             if program_text[pos].isdigit():
                 digit += program_text[pos]
             elif program_text[pos] == 'e':
                 digit += program_text[pos]
-                sost = 15
+                state = 15
             else:
                 out_buffer.append({'num': digit})
                 pos -= 1
                 digit = ''
-                sost = 0
-        elif sost == 15:
+                state = 0
+                
+        elif state == 15:  # После 'e' в научной нотации
             if program_text[pos].isdigit():
                 digit += program_text[pos]
-                sost = 17
+                state = 17
             elif program_text[pos] == '+' or program_text[pos] == '-':
                 digit += program_text[pos]
-                sost = 16
+                state = 16
             else:
                 print('Ошибка в автомате чисел! (Состояние 15)')
                 exit(-1)
-        elif sost == 16:
+                
+        elif state == 16:  # После знака в экспоненте
             if program_text[pos].isdigit():
                 digit += program_text[pos]
-                sost = 17
+                state = 17
             else:
                 print('Ошибка в автомате чисел! (Состояние 16)')
                 exit(-1)
-        elif sost == 17:
+                
+        elif state == 17:  # Экспонента числа
             if program_text[pos].isdigit():
                 digit += program_text[pos]
             else:
                 out_buffer.append({'num': digit})
                 pos -= 1
                 digit = ''
-                sost = 0
-        else:
-            pass
+                state = 0
+                
+        elif state == 18:  # Однострочный комментарий //
+            if program_text[pos] == '\n':
+                out_buffer.append({'com': 0})
+                state = 0
+            # Продолжаем читать до конца строки
+            
         pos += 1
 
     return out_buffer
