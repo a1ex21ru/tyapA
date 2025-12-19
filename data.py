@@ -5,10 +5,9 @@ from collections import defaultdict
 
 nested_dict = lambda: defaultdict(nested_dict)
 
-# Базовые типы данных (изменено: float вместо float32)
 TYPES = [
     'int',
-    'float',    # Изменено с float32 на float
+    'float',
     'bool',
 ]
 
@@ -44,7 +43,7 @@ def parse_value(var_type, value):
                 return int(float(value)), 'int'  # Через float для "5.0" -> 5
             else:
                 return int(value), 'int'
-        case 'float':  # Изменено с float32
+        case 'float':  
             # Может быть строка или уже float/int
             if isinstance(value, str):
                 return float(value), 'float'
@@ -95,7 +94,7 @@ class ArrayVar:
     """
     name: str
     type: str
-    size: int  # Изменено: теперь только одно значение для одномерных массивов
+    size: int
     values: defaultdict = dataclasses.field(default_factory=nested_dict)
     addr: int = 0
 
@@ -157,9 +156,9 @@ class Token:
 
 # Константы размеров типов в байтах
 SIZES = {
-    'int': 8,
-    'float': 8,    # Изменено с float32
-    'bool': 4,
+    'int': 4,
+    'float': 8,
+    'bool': 1,
 }
 
 

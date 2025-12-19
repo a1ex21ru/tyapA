@@ -1,0 +1,13 @@
+prog Test;
+
+int sum;
+int arr[5];
+float ddx;
+main() {
+    sum = 0;
+    for (int i = 0; i < 5; i = i + 1) {
+        arr[i] = i * i;
+        sum = sum + arr[i];
+    }
+    ddx = sum + arr[3];
+}

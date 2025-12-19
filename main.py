@@ -6,29 +6,83 @@ from symantic import *
 
 filename = 'program.txt'
 
+# LAYOUT = [
+#     [
+#         sg.Text('Входной файл:'),
+#         sg.InputText(),
+#         sg.FileBrowse('Выбор', key='browse', change_submits=True),
+#         sg.Button('Загрузить', key='load_input'),
+#         sg.Submit('Старт', key='start')
+#     ],
+#     [
+#         sg.Output(size=(50, 30), key="file_input"),
+#         sg.Output(size=(50, 30), key="stack_callable"),
+#         sg.Output(size=(25, 30), key="stack_variable"),
+#     ],
+#     [
+#         sg.Output(size=(134, 5))
+#     ],
+# ]
+
 LAYOUT = [
     [
         sg.Text('Входной файл:'),
-        sg.InputText(),
+        sg.InputText(key='filepath', expand_x=True),
         sg.FileBrowse('Выбор', key='browse', change_submits=True),
         sg.Button('Загрузить', key='load_input'),
         sg.Submit('Старт', key='start')
     ],
     [
-        sg.Output(size=(50, 30), key="file_input"),
-        sg.Output(size=(50, 30), key="stack_callable"),
-        sg.Output(size=(25, 30), key="stack_variable"),
+        sg.Multiline(
+            size=(50, 30), 
+            key="file_input", 
+            #font=('Courier New', 10),
+            expand_x=True,
+            expand_y=True
+        ),
+        sg.Multiline(
+            size=(50, 30), 
+            key="stack_callable",
+            #font=('Courier New', 10),
+            expand_x=True,
+            expand_y=True
+        ),
+        sg.Multiline(
+            size=(25, 30), 
+            key="stack_variable",
+            #font=('Courier New', 10),
+            expand_x=True,
+            expand_y=True
+        ),
     ],
     [
-        sg.Output(size=(134, 5))
+        sg.Multiline(
+            size=(134, 5),
+            key='output',
+            autoscroll=True,
+            expand_x=True
+        )
     ],
 ]
 
-DEBUG = False 
+DEBUG = False
+
+def print_to_output(window, message):
+    """Вывод сообщения в окно output"""
+    try:
+        current = window['output'].get()
+        window['output'].update(current + '\n' + message)
+    except:
+        print(message)
 
 
 def main():
-    window = sg.Window('Алексеев Дмитрий ИВТ-41-22', LAYOUT)
+    window = sg.Window(
+        'Транслятор - Алексеев Дмитрий (Вариант 22)',
+        LAYOUT,
+        resizable=True, 
+        finalize=True
+    )
     
     # Переменная для хранения текста программы
     current_program_text = None
@@ -41,12 +95,14 @@ def main():
         
         if event == 'load_input':
             try:
-                
+                # Получаем путь к файлу
                 filepath = values['browse']
+                
                 if not filepath:
-                    print('Пожалуйста, выберите файл')
+                    print_to_output(window, 'Пожалуйста, выберите файл')
                     continue
                 
+                # Читаем файл с обработкой разных кодировок
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         current_program_text = f.read()
@@ -57,35 +113,38 @@ def main():
                     except:
                         with open(filepath, 'r', encoding='latin-1') as f:
                             current_program_text = f.read()
-
+                
+                # Отображаем содержимое файла
                 window['file_input'].update(current_program_text)
-                print(f'Файл загружен: {filepath}')
+                window['filepath'].update(filepath)
+                # print_to_output(window, f'Файл загружен: {os.path.basename(filepath)}')
+                window['output'].update(f'Файл загружен: {os.path.basename(filepath)}')
                 
             except FileNotFoundError:
-                print(f'Файл не найден: {filepath}')
+                print_to_output(window, f'Файл не найден: {filepath}')
             except Exception as e:
-                print(f'Ошибка при загрузке файла: {e}')
+                print_to_output(window, f'Ошибка при загрузке файла: {e}')
         
         if event == 'start':
             try:
+                # Получаем текст программы из окна
                 program_text = window['file_input'].get()
                 
                 if not program_text or program_text.strip() == '':
-                    print('Нет программы для обработки. Загрузите файл.')
+                    print_to_output(window, 'Нет программы для обработки. Загрузите файл.')
                     continue
                 
+                # Очищаем окна вывода
                 window['stack_callable'].update('')
                 window['stack_variable'].update('')
                 
-                print('Начало трансляции...')
-
                 # 1. Лексический анализ
                 tokens = synth(program_text)
-                print(f'Лексический анализ: {len(tokens)} токенов')
+                print_to_output(window, f'Лексический анализ: {len(tokens)} токенов')
                 
                 # 2. Семантический анализ
                 operations = symantic(tokens)
-                print(f'Семантический анализ: {len(operations)} операций')
+                print_to_output(window, f'Семантический анализ: {len(operations)} операций')
                 
                 # 3. Визуализация результатов
                 stack_calls_output = stack_calls(operations)
@@ -94,19 +153,20 @@ def main():
                 window['stack_callable'].update(stack_calls_output)
                 window['stack_variable'].update(stack_vars_output)
                 
-                print('Трансляция завершена успешно!')
+                print_to_output(window, 'Трансляция завершена успешно!')
                 
             except Exception as e:
-                print(f'Ошибка: {e}')
+                print_to_output(window, f'ОШИБКА: {e}')
                 import traceback
-                traceback.print_exc()
+                error_details = traceback.format_exc()
+                print_to_output(window, f'Подробности:\n{error_details}')
     
     window.close()
 
 
 if __name__ == '__main__':
     if DEBUG:
-        # Режим отладки без GUI
+        # без GUI
         try:
             program_text = read_file(filename)
             tokens = synth(program_text)
@@ -120,5 +180,4 @@ if __name__ == '__main__':
             import traceback
             traceback.print_exc()
     else:
-        # Режим с GUI
         main()
